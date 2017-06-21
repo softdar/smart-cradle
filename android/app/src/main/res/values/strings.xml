@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">smart-cradle</string>
+    <string name="title_activity_main">Bluetooth1</string>
+    <string name="btn_ON">Encender</string>
+    <string name="btn_OFF">Apagar</string>
 </resources>
