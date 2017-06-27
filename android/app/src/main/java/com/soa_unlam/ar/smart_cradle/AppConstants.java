@@ -18,13 +18,15 @@ public class AppConstants {
 
     public static final int MOV_EXISTS = 4;
 
-    public static final int SOUND_ON = 5;
+    public static final int MOV_NOT_EXISTS = 5;
 
-    public static final int SOUND_OFF = 6;
+    public static final int SOUND_ON = 6;
 
-    public static final int INCL_KO = 7;
+    public static final int SOUND_OFF = 7;
 
-    public static final int INCL_OK = 8;
+    public static final int INCL_KO = 8;
+
+    public static final int INCL_OK = 9;
 
     // Status for Handler
     public static final int RECIEVE_MESSAGE = 1;

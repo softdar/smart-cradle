@@ -11,13 +11,20 @@ import java.lang.reflect.Method;
 import java.util.UUID;
 
 import android.app.Activity;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -30,7 +37,7 @@ import static com.soa_unlam.ar.smart_cradle.AppConstants.RECIEVE_MESSAGE;
 public class MainActivity extends Activity {
     private static final String TAG = "ArduinoCon_BT";
 
-    private Button btnOn, btnOff;
+    private Button btnOn, btnOff, btnConfig;
     private TextView textTemp;
     private TextView textMov;
     private TextView textEstadoSound;
@@ -43,11 +50,17 @@ public class MainActivity extends Activity {
 
     private ConnectedThread mConnectedThread;
 
+    private static final AppService APP_SERVICE = AppServiceImpl.getInstance();
+
     // SPP UUID service
     private static final UUID APP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     // MAC-address of Bluetooth module (you must edit this line)
     private static final String ADDRESS = "20:16:12:12:22:70";
+
+    private String minTemp = "23";
+
+    private String maxTemp = "25";
 
     /** Called when the activity is first created. */
     @Override
@@ -58,6 +71,7 @@ public class MainActivity extends Activity {
 
         btnOn = (Button) findViewById(R.id.btnOn);					// button LED ON
         btnOff = (Button) findViewById(R.id.btnOff);				// button LED OFF
+        btnConfig = (Button) findViewById(R.id.btnConfig);				// button LED OFF
         textTemp = (TextView) findViewById(R.id.textTemp);
         textMov = (TextView) findViewById(R.id.textMov);
         textEstadoSound = (TextView) findViewById(R.id.textEstadoSound);
@@ -68,8 +82,6 @@ public class MainActivity extends Activity {
                 String[] arrayMsg;
                 String strIncom = "";
                 try {
-
-
                     switch (msg.what) {
                         case RECIEVE_MESSAGE:													// if receive massage
                             byte[] readBuf = (byte[]) msg.obj;
@@ -85,7 +97,6 @@ public class MainActivity extends Activity {
                                 btnOn.setEnabled(true);
                             }
                             //Log.d(TAG, "...String:"+ sb.toString() +  "Byte:" + msg.arg1 + "...");
-                            break;
                     }
                 } catch (Exception e) {
                     errorExit("Fatal Error", "In handleMessage(), fail process info: " + e.getMessage() + "." + strIncom);
@@ -101,7 +112,7 @@ public class MainActivity extends Activity {
                 btnOn.setEnabled(false);
                 btnOn.setTextColor(Color.parseColor("#FFCC99"));
                 btnOff.setTextColor(Color.parseColor("#FFFFFF"));
-                mConnectedThread.write(AppConstants.ENCENDIDO);	// Send "1" via Bluetooth
+                mConnectedThread.write(AppConstants.ENCENDIDO + "\n");	// Send "1" via Bluetooth
                 //Toast.makeText(getBaseContext(), "Turn on LED", Toast.LENGTH_SHORT).show();
             }
         });
@@ -115,15 +126,21 @@ public class MainActivity extends Activity {
                 textMov.setText("Estado no disponible");
                 textEstadoSound.setText("Estado no disponible");
                 textInclDevice.setText("Estado no disponible");
-                mConnectedThread.write(AppConstants.APAGADO);	// Send "0" via Bluetooth
+                mConnectedThread.write(AppConstants.APAGADO + "\n");	// Send "0" via Bluetooth
                 //Toast.makeText(getBaseContext(), "Turn off LED", Toast.LENGTH_SHORT).show();
             }
         });
-    }
 
-    @Override
-    public void onResume() {
-        super.onResume();
+        btnConfig.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(MainActivity.this, "Cambiando a Configuración", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(MainActivity.this, ConfigActivity.class);
+                APP_SERVICE.setMinTemp(minTemp);
+                APP_SERVICE.setMaxTemp(maxTemp);
+                startActivity(intent);
+            }
+        });
 
         Log.d(TAG, "...onResume - try connect...");
 
@@ -181,7 +198,14 @@ public class MainActivity extends Activity {
         Log.d(TAG, "...Create Socket...");
 
         mConnectedThread = new ConnectedThread(btSocket);
+        mConnectedThread.setHandler(handler);
+        APP_SERVICE.setConnectedThread(mConnectedThread);
         mConnectedThread.start();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
     }
 
     @Override
@@ -229,82 +253,65 @@ public class MainActivity extends Activity {
             case AppConstants.TEMP_STATUS_KO:
                 strMessage = "Temperatura fuera de rango! ";
                 textTemp.setText(strMessage);
+                showNotification("smart-cradle", strMessage);
                 break;
             case AppConstants.TEMP_STATUS_OK:
-                strMessage = "el clima es genial!";
+                strMessage = "Temperatura en el rango!";
                 textTemp.setText(strMessage);
                 break;
             case AppConstants.MOV_EXISTS:
-                strMessage = "su bebé se mueve!";
+                strMessage = "Hay movimiento!";
+                textMov.setText(strMessage);
+                showNotification("smart-cradle", strMessage);
+                break;
+            case AppConstants.MOV_NOT_EXISTS:
+                strMessage = "Sin movimiento!";
                 textMov.setText(strMessage);
                 break;
             case AppConstants.SOUND_ON:
-                strMessage = "sonido prendido!";
+                strMessage = "Sonido detectado!";
+                showNotification("smart-cradle", strMessage);
                 textEstadoSound.setText(strMessage);
                 break;
             case AppConstants.SOUND_OFF:
-                strMessage = "sonido apagado!";
+                strMessage = "Sonido no detectado!";
                 textEstadoSound.setText(strMessage);
                 break;
             case AppConstants.INCL_KO:
-                strMessage = "Debe acomodar dispositivo! ";
+                strMessage = "Debe acomodar dispositivo!";
+                showNotification("smart-cradle", strMessage);
                 textInclDevice.setText(strMessage);
                 break;
             case AppConstants.INCL_OK:
-                strMessage = "Inclinación correcta! ";
+                strMessage = "Dispositivo correcto!";
                 textInclDevice.setText(strMessage);
                 break;
-            default:
-                strMessage = "su bebé está quieto!";
-                textMov.setText(strMessage);
         }
         return strMessage;
     }
 
-    private class ConnectedThread extends Thread {
-        private final InputStream inputStream;
-        private final OutputStream outputStream;
+    private void showNotification(String title, String content) {
+        NotificationCompat.Builder mBuilder =   new NotificationCompat.Builder(this)
+                .setSmallIcon(R.drawable.ic_launcher) // notification icon
+                .setContentTitle(title) // title for notification
+                .setContentText(content) // message for notification
+                .setAutoCancel(true); // clear notification after click
+        Intent intent = new Intent(this, MainActivity.class);
+        //@SuppressWarnings("WrongConstant")
+        PendingIntent pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        mBuilder.setContentIntent(pi);
+        NotificationManager mNotificationManager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(0, mBuilder.build());
 
-        public ConnectedThread(BluetoothSocket socket) {
-            InputStream tmpIn = null;
-            OutputStream tmpOut = null;
+        mBuilder.setVibrate(new long[] { 1000, 1000, 1000, 1000, 1000 });
 
-            // Get the input and output streams, using temp objects because
-            // member streams are final
-            try {
-                tmpIn = socket.getInputStream();
-                tmpOut = socket.getOutputStream();
-            } catch (IOException e) { }
-
-            inputStream = tmpIn;
-            outputStream = tmpOut;
-        }
-
-        public void run() {
-            byte[] buffer = new byte[256];  // buffer store for the stream
-            int bytes; // bytes returned from read()
-
-            // Keep listening to the InputStream until an exception occurs
-            while (true) {
-                try {
-                    // Read from the InputStream
-                    bytes = inputStream.read(buffer);		// Get number of bytes and message in "buffer"
-                    handler.obtainMessage(RECIEVE_MESSAGE, bytes, -1, buffer).sendToTarget();		// Send to message queue Handler
-                } catch (IOException e) {
-                    break;
-                }
-            }
-        }
-
-        /* Call this from the main activity to send data to the remote device */
-        public void write(String message) {
-            Log.d(TAG, "...Data to send: " + message + "...");
-            byte[] msgBuffer = message.getBytes();
-            try {
-                outputStream.write(msgBuffer);
-            } catch (IOException e) {
-                Log.d(TAG, "...Error data send: " + e.getMessage() + "...");
-            }
+        try {
+            Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            Ringtone ringtone = RingtoneManager.getRingtone(getApplicationContext(), notification);
+            ringtone.play();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
