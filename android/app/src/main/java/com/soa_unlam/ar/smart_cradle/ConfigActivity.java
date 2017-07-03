@@ -48,12 +48,12 @@ public class ConfigActivity extends Activity {
         update.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String minValue = editMinTemp.getText().toString();
-                String maxValue = editMaxTemp.getText().toString();
+                String tempMinValue = editMinTemp.getText().toString();
+                String tempMaxValue = editMaxTemp.getText().toString();
                 boolean isInputError = false;
                 try {
-                    Integer minTemp = Integer.valueOf(minValue);
-                    Integer maxTemp = Integer.valueOf(maxValue);
+                    Integer minTemp = Integer.valueOf(tempMinValue);
+                    Integer maxTemp = Integer.valueOf(tempMaxValue);
                     boolean valueMin = (minTemp > 0 && minTemp < 40);
                     boolean valueMax = (maxTemp > 10 && maxTemp < 60);
                     if (minTemp > maxTemp) {
@@ -71,11 +71,11 @@ public class ConfigActivity extends Activity {
                     isInputError = true;
                 }
                 if (!isInputError) {
-                    String fullUpdate = "T" + minValue + "-" + maxValue;
+                    String fullUpdate = "T" + tempMinValue + "-" + tempMaxValue;
                     ConnectedThread thread = (ConnectedThread)APP_SERVICE.getConnectedThread();
                     thread.write(fullUpdate);
-                    APP_SERVICE.setMinTemp(minTemp);
-                    APP_SERVICE.setMaxTemp(maxTemp);
+                    APP_SERVICE.setMinTemp(tempMinValue);
+                    APP_SERVICE.setMaxTemp(tempMaxValue);
                     Toast.makeText(getBaseContext(), "CAMBIOS REALIZADOS", Toast.LENGTH_LONG).show();
                     APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_STOPPED);
                     finish();

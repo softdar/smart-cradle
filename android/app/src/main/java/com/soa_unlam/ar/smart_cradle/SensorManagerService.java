@@ -36,7 +36,7 @@ public class SensorManagerService extends IntentService implements SensorEventLi
 
     private static final int SHAKE_THRESHOLD = 1300;
 
-    private static final int SENSOR_SENSITIVITY = 4;
+    private static final int SENSOR_SENSITIVITY = 0;
 
     private static final int LIGHT_UPDATE_THRESHOLD = 20000;
 
@@ -151,7 +151,7 @@ public class SensorManagerService extends IntentService implements SensorEventLi
             } else if (event.sensor.getType() == Sensor.TYPE_PROXIMITY) {
                 // abrir la configuración
                 float currentReader = event.values[0];
-                if (currentReader >= -SENSOR_SENSITIVITY && currentReader <= SENSOR_SENSITIVITY) {
+                if (currentReader == SENSOR_SENSITIVITY) {
                     //near
                     //sensorAppService.getSensorProximity().setText("SensorProximity_Value: Near - " + currentReader);
                     if (APP_SERVICE.getUpdateTempConfig() == AppConstants.TEMP_CONFIG_STOPPED) {
