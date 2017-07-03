@@ -50,14 +50,36 @@ public class ConfigActivity extends Activity {
             public void onClick(View v) {
                 String minValue = editMinTemp.getText().toString();
                 String maxValue = editMaxTemp.getText().toString();
-                String fullUpdate = "T" + minValue + "-" + maxValue;
-                ConnectedThread thread = (ConnectedThread)APP_SERVICE.getConnectedThread();
-                thread.write(fullUpdate);
-                APP_SERVICE.setMinTemp(minTemp);
-                APP_SERVICE.setMaxTemp(maxTemp);
-                Toast.makeText(getBaseContext(), "CAMBIOS REALIZADOS", Toast.LENGTH_LONG).show();
-                APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_STOPPED);
-                finish();
+                boolean isInputError = false;
+                try {
+                    Integer minTemp = Integer.valueOf(minValue);
+                    Integer maxTemp = Integer.valueOf(maxValue);
+                    boolean valueMin = (minTemp > 0 && minTemp < 40);
+                    boolean valueMax = (maxTemp > 10 && maxTemp < 60);
+                    if (minTemp > maxTemp) {
+                        Toast.makeText(getBaseContext(), "La mínima no puede exceder la máxima", Toast.LENGTH_LONG).show();
+                        isInputError = true;
+                    } else if (!valueMin) {
+                        Toast.makeText(getBaseContext(), "Mínima fuera de rango, debe estar entre 0-40", Toast.LENGTH_LONG).show();
+                        isInputError = true;
+                    } else if (!valueMax) {
+                        Toast.makeText(getBaseContext(), "Máxima fuera de rango, debe estar entre 10-60", Toast.LENGTH_LONG).show();
+                        isInputError = true;
+                    }
+                } catch (NumberFormatException nfe) {
+                    Toast.makeText(getBaseContext(), "Debe ingresar Números", Toast.LENGTH_LONG).show();
+                    isInputError = true;
+                }
+                if (!isInputError) {
+                    String fullUpdate = "T" + minValue + "-" + maxValue;
+                    ConnectedThread thread = (ConnectedThread)APP_SERVICE.getConnectedThread();
+                    thread.write(fullUpdate);
+                    APP_SERVICE.setMinTemp(minTemp);
+                    APP_SERVICE.setMaxTemp(maxTemp);
+                    Toast.makeText(getBaseContext(), "CAMBIOS REALIZADOS", Toast.LENGTH_LONG).show();
+                    APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_STOPPED);
+                    finish();
+                }
             }
         });
 
