@@ -80,6 +80,9 @@ public class MainActivity extends Activity implements SensorManagerReceiver.Rece
         textEstadoSound = (TextView) findViewById(R.id.textEstadoSound);
         textInclDevice = (TextView) findViewById(R.id.textInclDevice);
 
+        APP_SERVICE.setMinTemp(minTemp);
+        APP_SERVICE.setMaxTemp(maxTemp);
+
         handler = new Handler() {
             public void handleMessage(android.os.Message msg) {
                 String[] arrayMsg;
@@ -128,8 +131,6 @@ public class MainActivity extends Activity implements SensorManagerReceiver.Rece
             public void onClick(View v) {
                 Toast.makeText(MainActivity.this, "Cambiando a Configuración", Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(MainActivity.this, ConfigActivity.class);
-                APP_SERVICE.setMinTemp(minTemp);
-                APP_SERVICE.setMaxTemp(maxTemp);
                 APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_RUNNING);
                 startActivity(intent);
             }
