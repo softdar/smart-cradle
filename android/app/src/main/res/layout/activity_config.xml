@@ -77,11 +77,14 @@
                 android:textSize="16sp"
                 android:layout_weight="2"
                 android:text="Modificar Mínima:"/>
-            <EditText android:id="@+id/editMinTemp"
+
+            <EditText
+                android:id="@+id/editMinTemp"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_weight="2"
-                android:gravity="center"/>
+                android:gravity="center"
+                android:textSize="24sp" />
         </LinearLayout>
 
     </LinearLayout>
@@ -123,11 +126,13 @@
                 android:text="Modificar Máxima:"
                 android:textSize="16sp" />
 
-            <EditText android:id="@+id/editMaxTemp"
+            <EditText
+                android:id="@+id/editMaxTemp"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_weight="2"
-                android:gravity="center"/>
+                android:gravity="center"
+                android:textSize="24sp" />
         </LinearLayout>
 
     </LinearLayout>

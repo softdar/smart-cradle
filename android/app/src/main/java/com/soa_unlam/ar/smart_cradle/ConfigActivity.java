@@ -56,6 +56,7 @@ public class ConfigActivity extends Activity {
                 APP_SERVICE.setMinTemp(minTemp);
                 APP_SERVICE.setMaxTemp(maxTemp);
                 Toast.makeText(getBaseContext(), "CAMBIOS REALIZADOS", Toast.LENGTH_LONG).show();
+                APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_STOPPED);
                 finish();
             }
         });
@@ -63,6 +64,8 @@ public class ConfigActivity extends Activity {
         cancel.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Toast.makeText(getBaseContext(), "Configuración Cancelada!", Toast.LENGTH_LONG).show();
+                APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_STOPPED);
                 finish();
             }
         });

@@ -31,5 +31,16 @@ public class AppConstants {
     // Status for Handler
     public static final int RECIEVE_MESSAGE = 1;
 
+    public static final int SHAKE_OFF = 0;
+
+    public static final int SHAKE_ON = 1;
+
+    public static final int UPDATE_LIGHT = 2;
+
+    public static final int CHANGE_TEMP_CONFIG = 3;
+
+    public static final int TEMP_CONFIG_STOPPED = 0;
+
+    public static final int TEMP_CONFIG_RUNNING = 1;
 
 }

@@ -7,6 +7,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.soa_unlam.ar.smart_cradle.AppConstants.RECIEVE_MESSAGE;
 
@@ -19,8 +20,11 @@ public class ConnectedThread extends Thread {
     private final InputStream inputStream;
     private final OutputStream outputStream;
 
-
     private Handler handler;
+
+    private AtomicInteger atomicInteger;
+    private static final Integer MAX_READERS = 5;
+    private static final AppService APP_SERVICE = AppServiceImpl.getInstance();
 
     public ConnectedThread(BluetoothSocket socket) {
         InputStream tmpIn = null;
@@ -35,21 +39,42 @@ public class ConnectedThread extends Thread {
 
         inputStream = tmpIn;
         outputStream = tmpOut;
+
+        atomicInteger = APP_SERVICE.getAtomicInteger();
     }
 
     public void run() {
         byte[] buffer = new byte[256];  // buffer store for the stream
         int bytes; // bytes returned from read()
-
         // Keep listening to the InputStream until an exception occurs
         while (true) {
-            try {
-                // Read from the InputStream
-                bytes = inputStream.read(buffer);		// Get number of bytes and message in "buffer"
-                handler.obtainMessage(RECIEVE_MESSAGE, bytes, -1, buffer).sendToTarget();		// Send to message queue Handler
-            } catch (IOException e) {
-                break;
-            }
+                try {
+                    // Read from the InputStream
+                    // Get number of bytes and message in "buffer"
+                    bytes = inputStream.read(buffer);
+                    // Send to message queue Handler
+                    synchronized (atomicInteger) {
+                        while (atomicInteger.get() == MAX_READERS) {
+                            atomicInteger.wait();
+                        }
+                        handler.obtainMessage(RECIEVE_MESSAGE, bytes, -1, buffer).sendToTarget();
+                        atomicInteger.notifyAll();
+                        atomicInteger.incrementAndGet();
+                    }
+                } catch (IOException e) {
+                    String error = e.getMessage();
+                    byte[] errorBytes = error.getBytes();
+                    // Send to message queue Handler
+                    handler.obtainMessage(RECIEVE_MESSAGE, errorBytes.length, -1, errorBytes).sendToTarget();
+                    break;
+                } catch (InterruptedException e) {
+                    String error = e.getMessage();
+                    byte[] errorBytes = error.getBytes();
+                    // Send to message queue Handler
+                    handler.obtainMessage(RECIEVE_MESSAGE, errorBytes.length, -1, errorBytes).sendToTarget();
+                    break;
+                }
+
         }
     }
 

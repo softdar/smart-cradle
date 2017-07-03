@@ -2,6 +2,8 @@ package com.soa_unlam.ar.smart_cradle;
 
 import android.bluetooth.BluetoothSocket;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Created by A646241 on 22/06/2017.
  */
@@ -14,7 +16,13 @@ public class AppServiceImpl implements AppService {
 
     private String maxTemp;
 
+    private int deviceStatus = Integer.parseInt(AppConstants.APAGADO);
+
+    private int updateTempConfig = AppConstants.TEMP_CONFIG_STOPPED;
+
     private static final AppServiceImpl INSTANCE = new AppServiceImpl();
+
+    private static final AtomicInteger atomicInteger = new AtomicInteger(0);
 
     private AppServiceImpl() {}
 
@@ -44,5 +52,25 @@ public class AppServiceImpl implements AppService {
 
     public void setMaxTemp(String maxTemp) {
         this.maxTemp = maxTemp;
+    }
+
+    public int getDeviceStatus() {
+        return deviceStatus;
+    }
+
+    public void setDeviceStatus(int deviceStatus) {
+        this.deviceStatus = deviceStatus;
+    }
+
+    public int getUpdateTempConfig() {
+        return updateTempConfig;
+    }
+
+    public void setUpdateTempConfig(int updateTempConfig) {
+        this.updateTempConfig = updateTempConfig;
+    }
+
+    public AtomicInteger getAtomicInteger() {
+        return AppServiceImpl.atomicInteger;
     }
 }

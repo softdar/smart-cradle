@@ -5,8 +5,6 @@ package com.soa_unlam.ar.smart_cradle;
  */
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.UUID;
 
@@ -34,7 +32,7 @@ import android.widget.Toast;
 
 import static com.soa_unlam.ar.smart_cradle.AppConstants.RECIEVE_MESSAGE;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements SensorManagerReceiver.Receiver  {
     private static final String TAG = "ArduinoCon_BT";
 
     private Button btnOn, btnOff, btnConfig;
@@ -44,13 +42,14 @@ public class MainActivity extends Activity {
     private TextView textInclDevice;
     private Handler handler;
 
-    private BluetoothAdapter btAdapter = null;
-    private BluetoothSocket btSocket = null;
-    private StringBuilder sb = new StringBuilder();
+    private BluetoothAdapter bluetoothAdapter = null;
+    private BluetoothSocket bluetoothSocket = null;
 
-    private ConnectedThread mConnectedThread;
+    private ConnectedThread connectedThread;
 
     private static final AppService APP_SERVICE = AppServiceImpl.getInstance();
+
+    private SensorManagerReceiver receiver;
 
     // SPP UUID service
     private static final UUID APP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
@@ -61,6 +60,10 @@ public class MainActivity extends Activity {
     private String minTemp = "23";
 
     private String maxTemp = "25";
+
+    private long lastTime = System.currentTimeMillis();
+
+    private static final int NOTIFICATION_TIME_THRESHOLD = 2000;
 
     /** Called when the activity is first created. */
     @Override
@@ -96,7 +99,6 @@ public class MainActivity extends Activity {
                                 btnOff.setEnabled(true);
                                 btnOn.setEnabled(true);
                             }
-                            //Log.d(TAG, "...String:"+ sb.toString() +  "Byte:" + msg.arg1 + "...");
                     }
                 } catch (Exception e) {
                     errorExit("Fatal Error", "In handleMessage(), fail process info: " + e.getMessage() + "." + strIncom);
@@ -104,29 +106,19 @@ public class MainActivity extends Activity {
             };
         };
 
-        btAdapter = BluetoothAdapter.getDefaultAdapter();		// get Bluetooth adapter
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();		// get Bluetooth adapter
         checkBTState();
 
         btnOn.setOnClickListener(new OnClickListener() {
             public void onClick(View v) {
-                btnOn.setEnabled(false);
-                btnOn.setTextColor(Color.parseColor("#FFCC99"));
-                btnOff.setTextColor(Color.parseColor("#FFFFFF"));
-                mConnectedThread.write(AppConstants.ENCENDIDO + "\n");	// Send "1" via Bluetooth
+                onDevice();
                 //Toast.makeText(getBaseContext(), "Turn on LED", Toast.LENGTH_SHORT).show();
             }
         });
 
         btnOff.setOnClickListener(new OnClickListener() {
             public void onClick(View v) {
-                btnOff.setEnabled(false);
-                btnOff.setTextColor(Color.parseColor("#FFCC99"));
-                btnOn.setTextColor(Color.parseColor("#FFFFFF"));
-                textTemp.setText("Estado no disponible");
-                textMov.setText("Estado no disponible");
-                textEstadoSound.setText("Estado no disponible");
-                textInclDevice.setText("Estado no disponible");
-                mConnectedThread.write(AppConstants.APAGADO + "\n");	// Send "0" via Bluetooth
+                offDevice();
                 //Toast.makeText(getBaseContext(), "Turn off LED", Toast.LENGTH_SHORT).show();
             }
         });
@@ -138,6 +130,7 @@ public class MainActivity extends Activity {
                 Intent intent = new Intent(MainActivity.this, ConfigActivity.class);
                 APP_SERVICE.setMinTemp(minTemp);
                 APP_SERVICE.setMaxTemp(maxTemp);
+                APP_SERVICE.setUpdateTempConfig(AppConstants.TEMP_CONFIG_RUNNING);
                 startActivity(intent);
             }
         });
@@ -145,7 +138,7 @@ public class MainActivity extends Activity {
         Log.d(TAG, "...onResume - try connect...");
 
         // Set up a pointer to the remote node using it's address.
-        BluetoothDevice device = btAdapter.getRemoteDevice(ADDRESS);
+        BluetoothDevice device = bluetoothAdapter.getRemoteDevice(ADDRESS);
 
         // Two things are needed to make a connection:
         //   A MAC address, which we got above.
@@ -153,18 +146,18 @@ public class MainActivity extends Activity {
         //     UUID for SPP.
 
         try {
-            btSocket = device.createRfcommSocketToServiceRecord(APP_UUID);
+            bluetoothSocket = device.createRfcommSocketToServiceRecord(APP_UUID);
         } catch (IOException e) {
             errorExit("Fatal Error", "In onResume() and socket create failed: " + e.getMessage() + ".");
         }
 
         // Discovery is resource intensive.  Make sure it isn't going on
         // when you attempt to connect and pass your message.
-        btAdapter.cancelDiscovery();
+        bluetoothAdapter.cancelDiscovery();
 
         // Establish the connection.  This will block until it connects.
         try {
-            btSocket.connect();
+            bluetoothSocket.connect();
             Log.d(TAG, "...Connection ok...");
         } catch (IOException e) {
             try {
@@ -174,20 +167,20 @@ public class MainActivity extends Activity {
                 Class<?>[] paramTypes = new Class<?>[] {Integer.TYPE};
                 Method m = clazz.getMethod("createRfcommSocket", paramTypes);
                 Object[] params = new Object[] {Integer.valueOf(1)};
-                btSocket  = (BluetoothSocket) m.invoke(tmp.getRemoteDevice(), params);
+                bluetoothSocket = (BluetoothSocket) m.invoke(tmp.getRemoteDevice(), params);
                 Thread.sleep(500);
-                btSocket.connect();
+                bluetoothSocket.connect();
             } catch (IOException e2) {
                 errorExit("Fatal Error", "In onResume() and unable to close socket during connection failure" + e2.getMessage() + ".");
                 try {
-                    btSocket.close();
+                    bluetoothSocket.close();
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
             } catch (Exception e2) {
                 Log.e(TAG, "Could not create Insecure RFComm Connection", e2);
                 try {
-                    btSocket.close();
+                    bluetoothSocket.close();
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
@@ -197,10 +190,22 @@ public class MainActivity extends Activity {
         // Create a data stream so we can talk to server.
         Log.d(TAG, "...Create Socket...");
 
-        mConnectedThread = new ConnectedThread(btSocket);
-        mConnectedThread.setHandler(handler);
-        APP_SERVICE.setConnectedThread(mConnectedThread);
-        mConnectedThread.start();
+        try {
+            receiver = new SensorManagerReceiver(new Handler());
+            receiver.setReceiver(this);
+            Intent sensorMngIntent = new Intent(Intent.ACTION_SYNC, null, this, SensorManagerService.class);
+            sensorMngIntent.putExtra("receiver", receiver);
+            startService(sensorMngIntent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        connectedThread = new ConnectedThread(bluetoothSocket);
+        connectedThread.setHandler(handler);
+        APP_SERVICE.setConnectedThread(connectedThread);
+        connectedThread.start();
+
+
     }
 
     @Override
@@ -219,7 +224,7 @@ public class MainActivity extends Activity {
         Log.d(TAG, "...In onPause()...");
 
         try {
-            btSocket.close();
+            bluetoothSocket.close();
         } catch (IOException e2) {
             errorExit("Fatal Error", "In onDestroy() and failed to close socket." + e2.getMessage() + ".");
         }
@@ -228,10 +233,10 @@ public class MainActivity extends Activity {
     private void checkBTState() {
         // Check for Bluetooth support and then check to make sure it is turned on
         // Emulator doesn't support Bluetooth and will return null
-        if(btAdapter==null) {
+        if(bluetoothAdapter ==null) {
             errorExit("Fatal Error", "Bluetooth not support");
         } else {
-            if (btAdapter.isEnabled()) {
+            if (bluetoothAdapter.isEnabled()) {
                 Log.d(TAG, "...Bluetooth ON...");
             } else {
                 //Prompt user to turn on Bluetooth
@@ -247,13 +252,23 @@ public class MainActivity extends Activity {
     }
 
     private String updateMessageFromDevice(Character msg) {
+        if (APP_SERVICE.getDeviceStatus() == Integer.parseInt(AppConstants.APAGADO)) {
+            APP_SERVICE.setDeviceStatus(Integer.parseInt(AppConstants.ENCENDIDO));
+            btnOn.setEnabled(false);
+            btnOn.setTextColor(Color.parseColor("#FFCC99"));
+            btnOff.setTextColor(Color.parseColor("#FFFFFF"));
+        }
         Integer value = Integer.parseInt(msg.toString());
         String strMessage = "";
+        long currentTime = System.currentTimeMillis();
+        long difTime = (currentTime - lastTime);
         switch (value) {
             case AppConstants.TEMP_STATUS_KO:
                 strMessage = "Temperatura fuera de rango! ";
                 textTemp.setText(strMessage);
-                showNotification("smart-cradle", strMessage);
+                if (difTime > NOTIFICATION_TIME_THRESHOLD) {
+                    showNotification("smart-cradle", strMessage);
+                }
                 break;
             case AppConstants.TEMP_STATUS_OK:
                 strMessage = "Temperatura en el rango!";
@@ -262,7 +277,9 @@ public class MainActivity extends Activity {
             case AppConstants.MOV_EXISTS:
                 strMessage = "Hay movimiento!";
                 textMov.setText(strMessage);
-                showNotification("smart-cradle", strMessage);
+                if (difTime > NOTIFICATION_TIME_THRESHOLD) {
+                    showNotification("smart-cradle", strMessage);
+                }
                 break;
             case AppConstants.MOV_NOT_EXISTS:
                 strMessage = "Sin movimiento!";
@@ -270,7 +287,9 @@ public class MainActivity extends Activity {
                 break;
             case AppConstants.SOUND_ON:
                 strMessage = "Sonido detectado!";
-                showNotification("smart-cradle", strMessage);
+                if (difTime > NOTIFICATION_TIME_THRESHOLD) {
+                    showNotification("smart-cradle", strMessage);
+                }
                 textEstadoSound.setText(strMessage);
                 break;
             case AppConstants.SOUND_OFF:
@@ -279,14 +298,16 @@ public class MainActivity extends Activity {
                 break;
             case AppConstants.INCL_KO:
                 strMessage = "Debe acomodar dispositivo!";
-                showNotification("smart-cradle", strMessage);
+                if (difTime > NOTIFICATION_TIME_THRESHOLD) {
+                    showNotification("smart-cradle", strMessage);
+                }
                 textInclDevice.setText(strMessage);
                 break;
             case AppConstants.INCL_OK:
                 strMessage = "Dispositivo correcto!";
                 textInclDevice.setText(strMessage);
-                break;
         }
+        lastTime = currentTime;
         return strMessage;
     }
 
@@ -313,5 +334,52 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void onReceiveResult(int resultCode, Bundle resultData) {
+        switch (resultCode) {
+            case AppConstants.SHAKE_OFF:
+                offDevice();
+                break;
+            case AppConstants.SHAKE_ON:
+                onDevice();
+                break;
+            case AppConstants.UPDATE_LIGHT:
+                float lightLevel = resultData.getFloat("LIGHT_LEVEL");
+                if (lightLevel < 40) {
+                    Toast.makeText(getBaseContext(), "LUZ AMBIENTE MUY BAJA!!!", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getBaseContext(), "LUZ AMBIENTE BUENA!!!", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case AppConstants.CHANGE_TEMP_CONFIG:
+                Intent intent = new Intent(MainActivity.this, ConfigActivity.class);
+                APP_SERVICE.setMinTemp(minTemp);
+                APP_SERVICE.setMaxTemp(maxTemp);
+                startActivity(intent);
+        }
+    }
+
+    private void offDevice() {
+        btnOff.setEnabled(false);
+        btnOn.setEnabled(true);
+        btnOff.setTextColor(Color.parseColor("#FFCC99"));
+        btnOn.setTextColor(Color.parseColor("#FFFFFF"));
+        textTemp.setText("Estado no disponible");
+        textMov.setText("Estado no disponible");
+        textEstadoSound.setText("Estado no disponible");
+        textInclDevice.setText("Estado no disponible");
+        APP_SERVICE.setDeviceStatus(Integer.parseInt(AppConstants.APAGADO));
+        connectedThread.write(AppConstants.APAGADO + "\n");	// Send "0" via Bluetooth
+    }
+
+    private void onDevice() {
+        btnOn.setEnabled(false);
+        btnOff.setEnabled(true);
+        btnOn.setTextColor(Color.parseColor("#FFCC99"));
+        btnOff.setTextColor(Color.parseColor("#FFFFFF"));
+        APP_SERVICE.setDeviceStatus(Integer.parseInt(AppConstants.ENCENDIDO));
+        connectedThread.write(AppConstants.ENCENDIDO + "\n");	// Send "1" via Bluetooth
     }
 }
